@@ -1,3 +1,5 @@
+import { transliterateLyrics } from './transliterate';
+
 export type LyricsResult = { 
   lyrics: string | null; 
   provider: string | null; 
@@ -43,19 +45,25 @@ export async function fetchLyrics(title: string, artist: string): Promise<Lyrics
           
           console.log("LRCLIB found lyrics with", timestamps.length, "timestamps");
           
-          if (timestamps.length > 0) {
-            const data = { 
-              lyrics: lrcText, 
-              provider: "LRCLIB", 
-              synced: true,
-              timestamps
-            };
-            cache.set(key, { data, ts: now });
-            console.log("Returning synced lyrics with first few timestamps:", timestamps.slice(0, 3));
-            return data;
-          } else {
-            console.log("No timestamps parsed from LRC text");
-          }
+               if (timestamps.length > 0) {
+                 // Transliterate timestamps if needed
+                 const transliteratedTimestamps = timestamps.map(item => ({
+                   time: item.time,
+                   text: transliterateLyrics(item.text)
+                 }));
+                 
+                 const data = { 
+                   lyrics: lrcText, 
+                   provider: "LRCLIB", 
+                   synced: true,
+                   timestamps: transliteratedTimestamps
+                 };
+                 cache.set(key, { data, ts: now });
+                 console.log("Returning synced lyrics with first few timestamps:", transliteratedTimestamps.slice(0, 3));
+                 return data;
+               } else {
+                 console.log("No timestamps parsed from LRC text");
+               }
         }
       }
     }
@@ -85,12 +93,15 @@ export async function fetchLyrics(title: string, artist: string): Promise<Lyrics
       return data;
     }
     
-    const firstResult = result[0];
-    const lyrics = firstResult?.lyrics ?? null;
-    
-    const data = { lyrics, provider: "AudD", synced: false };
-    cache.set(key, { data, ts: now });
-    return data;
+         const firstResult = result[0];
+         const lyrics = firstResult?.lyrics ?? null;
+         
+         // Transliterate if needed
+         const transliteratedLyrics = lyrics ? transliterateLyrics(lyrics) : null;
+         
+         const data = { lyrics: transliteratedLyrics, provider: "AudD", synced: false };
+         cache.set(key, { data, ts: now });
+         return data;
   } catch (error) {
     console.error("Error fetching lyrics:", error);
     return { lyrics: null, provider: null, synced: false };
